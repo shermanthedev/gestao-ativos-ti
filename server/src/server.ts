@@ -7,6 +7,7 @@ import { funcionariosRoutes } from './routes/funcionario.routes.js';
 import { ativosRoutes } from './routes/ativo.routes.js';
 import { usuarioTIRoutes } from './routes/usuarioTI.routes.js';
 import { authRoutes } from './routes/auth.routes.js';
+import { auditRoutes } from './routes/audit.routes.js';
 import { metaRoutes } from './routes/meta.routes.js';
 import './types/express.d.js';
 
@@ -21,6 +22,7 @@ app.use('/setores', setorRoutes);
 app.use('/funcionarios', funcionariosRoutes);
 app.use('/ativos', ativosRoutes);
 app.use('/usuarios-ti', usuarioTIRoutes);
+app.use('/auditoria', auditRoutes);
 app.use('/auth', authRoutes);
 app.use('/', metaRoutes);
 

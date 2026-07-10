@@ -3,6 +3,7 @@ import { Prisma, TipoAtivo } from '@prisma/client';
 import { prisma } from '../config/database.js';
 import { AppError } from '../utils/AppError.js';
 import { createAtivoSchema, updateAtivoSchema, listAtivoSchema, allocateAtivoSchema, deallocateAtivoSchema } from '../schemas/ativo.schema.js';
+import { createAuditLog } from '../utils/auditLog.js';
 
 const ativoSelect = {
   id: true,
@@ -61,6 +62,8 @@ export class AtivoController {
         },
         select: ativoSelect
       });
+
+      await createAuditLog(req, 'CREATE', 'Ativo', `${req.user?.nome ?? 'desconhecido'} cadastrou o ativo ${novoAtivo.modelo}`)
 
       return res.status(201).json(novoAtivo);
     } catch (err) {
@@ -149,6 +152,8 @@ export class AtivoController {
         select: ativoSelect
       });
 
+      await createAuditLog(req, 'UPDATE', 'Ativo', `${req.user?.nome ?? 'desconhecido'} atualizou o ativo ${ativoAtualizado.modelo}`)
+
       return res.json(ativoAtualizado);
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
@@ -168,6 +173,7 @@ export class AtivoController {
     }
 
     await prisma.ativo.delete({ where: { id } });
+    await createAuditLog(req, 'DELETE', 'Ativo', `${req.user?.nome ?? 'desconhecido'} deletou o ativo ${ativoExistente.modelo}`)
 
     return res.status(204).send();
   }

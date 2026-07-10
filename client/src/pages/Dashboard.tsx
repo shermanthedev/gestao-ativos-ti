@@ -1,10 +1,83 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Header from '../components/Header'
 import Sidebar from '../components/Sidebar'
 import Layout from '../components/Layout'
+import { api } from '../lib/api'
+import { formatTimeAgo } from '../utils/date'
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+
+type Activity = {
+  id: string
+  text: string
+  createdAt: string
+  timeAgo: string
+  variant: 'info' | 'success'
+}
+
+type TipoCount = {
+  tipo: string
+  total: number
+}
 
 export default function Dashboard() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [ativosCount, setAtivosCount] = useState(0)
+  const [setoresCount, setSetoresCount] = useState(0)
+  const [funcionariosCount, setFuncionariosCount] = useState(0)
+  const [lastUpdatedText, setLastUpdatedText] = useState('Atualizado há --')
+  const [recentActivities, setRecentActivities] = useState<Activity[]>([])
+  const [ativosByTipo, setAtivosByTipo] = useState<TipoCount[]>([])
+
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        const [ativosRes, setoresRes, funcionariosRes, auditRes, summaryRes] = await Promise.all([
+          api.get('/ativos', { params: { page: 1, limit: 1 } }),
+          api.get('/setores', { params: { page: 1, limit: 1 } }),
+          api.get('/funcionarios', { params: { page: 1, limit: 1 } }),
+          api.get('/auditoria', { params: { take: 5 } }),
+          api.get('/ativos/summary'),
+        ])
+
+        setAtivosCount(ativosRes.data.total ?? ativosRes.data.data.length)
+        setSetoresCount(setoresRes.data.total ?? setoresRes.data.data.length)
+        setFuncionariosCount(funcionariosRes.data.total ?? funcionariosRes.data.data.length)
+
+        const latestAtivo = ativosRes.data.data?.[0]
+        if (latestAtivo?.createdAt) {
+          setLastUpdatedText(`Atualizado ${formatTimeAgo(latestAtivo.createdAt)}`)
+        } else if ((ativosRes.data.total ?? 0) === 0) {
+          setLastUpdatedText('Nenhum ativo registrado ainda')
+        }
+
+        const activities = (auditRes.data.data ?? []).map((log: any) => ({
+          id: log.id,
+          text: log.message,
+          createdAt: log.createdAt,
+          timeAgo: formatTimeAgo(log.createdAt),
+          variant: log.action === 'DELETE' ? 'info' : 'success',
+        }))
+
+        const summaryData = summaryRes.data as Array<{ tipo: string; total: number }>
+        const tipoCounts = summaryData.reduce((acc, item) => {
+          acc[item.tipo] = (acc[item.tipo] ?? 0) + item.total
+          return acc
+        }, {} as Record<string, number>)
+
+        setAtivosByTipo(
+          Object.entries(tipoCounts)
+            .map(([tipo, total]) => ({ tipo, total }))
+            .sort((a, b) => b.total - a.total)
+        )
+
+        setRecentActivities(activities)
+      } catch (err) {
+        console.warn('Erro ao carregar dados do dashboard', err)
+      }
+    }
+
+    loadDashboardData()
+  }, [])
 
   return (
     <Layout
@@ -14,66 +87,68 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
         <div className="bg-white rounded-2xl p-4 shadow-sm border">
           <div className="text-sm text-gray-500">Ativos cadastrados</div>
-          <div className="mt-3 text-2xl font-semibold">1.254</div>
-          <div className="text-xs text-gray-400">Atualizado há 2 horas</div>
+          <div className="mt-3 text-2xl font-semibold">{ativosCount}</div>
+          <div className="text-xs text-gray-400">{lastUpdatedText}</div>
         </div>
 
         <div className="bg-white rounded-2xl p-4 shadow-sm border">
           <div className="text-sm text-gray-500">Setores</div>
-          <div className="mt-3 text-2xl font-semibold">24</div>
+          <div className="mt-3 text-2xl font-semibold">{setoresCount}</div>
           <div className="text-xs text-gray-400">Total de setores ativos</div>
         </div>
 
         <div className="bg-white rounded-2xl p-4 shadow-sm border">
-          <div className="text-sm text-gray-500">Usuários TI</div>
-          <div className="mt-3 text-2xl font-semibold">3</div>
-          <div className="text-xs text-gray-400">Contas com acesso</div>
+          <div className="text-sm text-gray-500">Funcionários</div>
+          <div className="mt-3 text-2xl font-semibold">{funcionariosCount}</div>
+          <div className="text-xs text-gray-400">Funcionários cadastrados</div>
         </div>
 
-        <div className="bg-white rounded-2xl p-4 shadow-sm border">
-          <div className="text-sm text-gray-500">Alertas</div>
-          <div className="mt-3 text-2xl font-semibold text-rose-600">2</div>
-          <div className="text-xs text-gray-400">Itens requerendo atenção</div>
-        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <section className="lg:col-span-2 bg-white rounded-2xl p-6 shadow-sm border">
-          <h3 className="text-sm font-medium text-gray-700">Resumo recente</h3>
-          <div className="mt-4 text-gray-600">
-            <p className="text-sm">Aqui podem ficar gráficos, tabelas e listas rápidas com informações relevantes.</p>
-          </div>
+          <h3 className="text-sm font-medium text-gray-700">Ativos por tipo</h3>
+          <p className="mt-2 text-sm text-gray-600">Tipo de ativo com mais registros no inventário.</p>
 
-          <div className="mt-6 h-40 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-lg flex items-center justify-center text-indigo-400">
-            <svg width="120" height="60" viewBox="0 0 120 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path
-                d="M5 50 L20 30 L35 40 L50 20 L65 30 L80 15 L95 35 L110 25"
-                stroke="#6366f1"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
+          <div className="mt-6 h-80">
+            {ativosByTipo.length === 0 ? (
+              <div className="flex h-full items-center justify-center text-gray-400">
+                Nenhum dado de ativos disponível no momento.
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart data={ativosByTipo} margin={{ top: 16, right: 20, left: 0, bottom: 0 }}>
+                  <CartesianGrid stroke="#E5E7EB" strokeDasharray="3 3" />
+                  <XAxis dataKey="tipo" tick={{ fill: '#6B7280', fontSize: 12 }} tickLine={false} axisLine={false} />
+                  <YAxis tick={{ fill: '#6B7280', fontSize: 12 }} />
+                  <Tooltip cursor={{ fill: 'rgba(99,102,241,0.08)' }} />
+                  <Bar dataKey="total" name="Ativos" fill="#4F46E5" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </section>
 
         <aside className="bg-white rounded-2xl p-6 shadow-sm border">
           <h4 className="text-sm font-medium text-gray-700">Atividades recentes</h4>
           <ul className="mt-4 space-y-3 text-sm text-gray-600">
-            <li className="flex items-start gap-3">
-              <span className="h-2 w-2 bg-indigo-500 rounded-full mt-2" />
-              <div>
-                <div className="font-medium">Novo ativo registrado</div>
-                <div className="text-xs text-gray-400">há 10 minutos</div>
-              </div>
-            </li>
-            <li className="flex items-start gap-3">
-              <span className="h-2 w-2 bg-rose-500 rounded-full mt-2" />
-              <div>
-                <div className="font-medium">Alerta de manutenção</div>
-                <div className="text-xs text-gray-400">há 2 horas</div>
-              </div>
-            </li>
+            {recentActivities.length === 0 ? (
+              <li className="text-gray-400">Nenhuma atividade recente disponível.</li>
+            ) : (
+              recentActivities.map((activity) => (
+                <li key={activity.id} className="flex items-start gap-3">
+                  <span
+                    className={`h-2 w-2 rounded-full mt-2 ${
+                      activity.variant === 'success' ? 'bg-emerald-500' : 'bg-sky-500'
+                    }`}
+                  />
+                  <div>
+                    <div className="font-medium">{activity.text}</div>
+                    <div className="text-xs text-gray-400">{activity.timeAgo}</div>
+                  </div>
+                </li>
+              ))
+            )}
           </ul>
         </aside>
       </div>

@@ -7,6 +7,9 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   console.log('Iniciando limpeza do banco: serão removidos registros de Ativo, Funcionario e Setor, preservando UsuarioTI.');
 
+  const auditDeleted = await prisma.auditLog.deleteMany({});
+  console.log(`Atividades de auditoria removidas: ${auditDeleted.count}`);
+
   const ativosDeleted = await prisma.ativo.deleteMany({});
   console.log(`Ativos removidos: ${ativosDeleted.count}`);
 

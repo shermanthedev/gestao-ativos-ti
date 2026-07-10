@@ -52,6 +52,16 @@ export default function Funcionarios() {
   const [newSetorId, setNewSetorId] = useState('')
   const [createLoading, setCreateLoading] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [selectedFuncionario, setSelectedFuncionario] = useState<Funcionario | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editEmail, setEditEmail] = useState('')
+  const [editSetorId, setEditSetorId] = useState('')
+  const [manageLoading, setManageLoading] = useState(false)
+  const [manageError, setManageError] = useState<string | null>(null)
+  const [assetsOpen, setAssetsOpen] = useState(false)
+  const [funcionarioAssets, setFuncionarioAssets] = useState<any[]>([])
+  const [assetsLoading, setAssetsLoading] = useState(false)
+  const [deallocatingAssetId, setDeallocatingAssetId] = useState<string | null>(null)
 
   const loadFuncionarios = async () => {
     setLoading(true)
@@ -88,16 +98,19 @@ export default function Funcionarios() {
     return () => window.clearTimeout(debounceTimer)
   }, [searchTerm])
 
-  useEffect(() => {
+
+  useEffect(() => {
     loadSetores()
   }, [])
 
-  const handleOpenCreate = () => {
+
+  const handleOpenCreate = () => {
     setFormError(null)
     setOpenCreate(true)
   }
 
-  const handleCloseCreate = () => {
+
+  const handleCloseCreate = () => {
     setOpenCreate(false)
     setNewName('')
     setNewEmail('')
@@ -105,28 +118,127 @@ export default function Funcionarios() {
     setFormError(null)
   }
 
-  const handleCreate = async () => {
+
+  const handleCreate = async () => {
     if (!newName || !newEmail || !newSetorId) {
       setFormError('Preencha todos os campos.')
       return
     }
 
-  setCreateLoading(true)
-  setFormError(null)
-  try {
-    await api.post('/funcionarios', {
-      nome: newName,
-      email: newEmail,
-      setorId: newSetorId,
-    })
-    handleCloseCreate()
-    await loadFuncionarios()
-  } catch (err: any) {
-    setFormError(err?.response?.data?.erro || err?.message || 'Erro ao criar funcionário')
-  } finally {
-    setCreateLoading(false)
+    setCreateLoading(true)
+    setFormError(null)
+    try {
+      await api.post('/funcionarios', {
+        nome: newName,
+        email: newEmail,
+        setorId: newSetorId,
+      })
+      handleCloseCreate()
+      await loadFuncionarios()
+    } catch (err: any) {
+      setFormError(err?.response?.data?.erro || err?.message || 'Erro ao criar funcionário')
+    } finally {
+      setCreateLoading(false)
+    }
   }
-}
+
+  const handleOpenManage = (funcionario: Funcionario) => {
+    setSelectedFuncionario(funcionario)
+    setEditName(funcionario.nome)
+    setEditEmail(funcionario.email)
+    setEditSetorId(funcionario.setor.id)
+    setManageError(null)
+  }
+
+  const handleCloseManage = () => {
+    setSelectedFuncionario(null)
+    setEditName('')
+    setEditEmail('')
+    setEditSetorId('')
+    setManageError(null)
+  }
+
+  const handleUpdateFuncionario = async () => {
+    if (!selectedFuncionario) return
+    if (!editName || !editEmail || !editSetorId) {
+      setManageError('Preencha todos os campos.')
+      return
+    }
+
+    setManageLoading(true)
+    setManageError(null)
+    try {
+      await api.put(`/funcionarios/${selectedFuncionario.id}`, {
+        nome: editName,
+        email: editEmail,
+        setorId: editSetorId,
+      })
+      handleCloseManage()
+      await loadFuncionarios()
+    } catch (err: any) {
+      setManageError(err?.response?.data?.erro || err?.message || 'Erro ao atualizar funcionário')
+    } finally {
+      setManageLoading(false)
+    }
+  }
+
+  const handleDeleteFuncionario = async () => {
+    if (!selectedFuncionario) return
+    const confirmDelete = window.confirm(`Deseja realmente deletar ${selectedFuncionario.nome}?`)
+    if (!confirmDelete) return
+
+    setManageLoading(true)
+    setManageError(null)
+    try {
+      await api.delete(`/funcionarios/${selectedFuncionario.id}`)
+      handleCloseManage()
+      await loadFuncionarios()
+    } catch (err: any) {
+      setManageError(err?.response?.data?.erro || err?.message || 'Erro ao deletar funcionário')
+    } finally {
+      setManageLoading(false)
+    }
+  }
+
+  const handleOpenAssets = async () => {
+    if (!selectedFuncionario) return
+    setAssetsOpen(true)
+    setAssetsLoading(true)
+    try {
+      const response = await api.get('/ativos', {
+        params: {
+          funcionarioId: selectedFuncionario.id,
+          page: 1,
+          limit: 100,
+        },
+      })
+      setFuncionarioAssets(response.data.data)
+    } catch (err: any) {
+      console.warn('Erro ao carregar ativos do funcionário', err)
+      setFuncionarioAssets([])
+    } finally {
+      setAssetsLoading(false)
+    }
+  }
+
+  const handleCloseAssets = () => {
+    setAssetsOpen(false)
+    setFuncionarioAssets([])
+  }
+
+  const handleDeallocateAsset = async (assetId: string) => {
+    setDeallocatingAssetId(assetId)
+    try {
+      await api.post('/ativos/deallocate', { ids: [assetId] })
+      setFuncionarioAssets((current) => current.filter((asset) => asset.id !== assetId))
+      await loadFuncionarios()
+    } catch (err: any) {
+      console.warn('Erro ao desalocar ativo', err)
+    } finally {
+      setDeallocatingAssetId(null)
+    }
+  }
+
   return (
     <Layout
       header={<Header onMenuToggle={setSidebarOpen} />}
@@ -156,7 +268,7 @@ export default function Funcionarios() {
               <button
                 type="button"
                 onClick={handleOpenCreate}
-                className="inline-flex items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-4 py-2 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition"
+                className="inline-flex h-10 items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-4 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition"
               >
                 <AddIcon className="h-4 w-4" />
                 Adicionar funcionário
@@ -202,7 +314,8 @@ export default function Funcionarios() {
                     <div className="text-xs text-gray-400">{funcionario.id}</div>
                     <button
                       type="button"
-                      className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition"
+                      className="inline-flex h-10 items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+                      onClick={() => handleOpenManage(funcionario)}
                     >
                       <ManageAccountsIcon className="h-4 w-4" />
                       Gerenciar
@@ -277,7 +390,7 @@ export default function Funcionarios() {
             type="button"
             onClick={handleCloseCreate}
             disabled={createLoading}
-            className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 transition"
+            className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 transition"
           >
             Cancelar
           </button>
@@ -285,9 +398,123 @@ export default function Funcionarios() {
             type="button"
             onClick={handleCreate}
             disabled={createLoading}
-            className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 transition"
+            className="inline-flex h-10 items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 transition"
           >
             {createLoading ? 'Salvando...' : 'Salvar'}
+          </button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={Boolean(selectedFuncionario)} onClose={handleCloseManage} fullWidth maxWidth="sm">
+        <DialogTitle>Gerenciar funcionário</DialogTitle>
+        <DialogContent>
+          <Stack spacing={3} className="mt-2">
+            {manageError && <Alert severity="error">{manageError}</Alert>}
+            <TextField
+              label="Nome"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              fullWidth
+              variant="outlined"
+            />
+            <TextField
+              label="Email"
+              type="email"
+              value={editEmail}
+              onChange={(e) => setEditEmail(e.target.value)}
+              fullWidth
+              variant="outlined"
+            />
+            <FormControl fullWidth>
+              <InputLabel id="edit-setor-select-label">Setor</InputLabel>
+              <Select
+                labelId="edit-setor-select-label"
+                value={editSetorId}
+                label="Setor"
+                onChange={(e) => setEditSetorId(e.target.value)}
+              >
+                {setores.map((setor) => (
+                  <MenuItem key={setor.id} value={setor.id}>
+                    {setor.nome}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Stack>
+        </DialogContent>
+        <DialogActions className="gap-3 p-4">
+          <button
+            type="button"
+            onClick={handleCloseManage}
+            disabled={manageLoading}
+            className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 transition"
+          >
+            Fechar
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenAssets}
+            disabled={manageLoading}
+            className="inline-flex h-10 items-center justify-center rounded-lg border border-indigo-200 bg-indigo-50 px-4 text-sm font-medium text-indigo-700 hover:bg-indigo-100 disabled:cursor-not-allowed disabled:opacity-50 transition"
+          >
+            Gerenciar ativos do funcionário
+          </button>
+          <button
+            type="button"
+            onClick={handleDeleteFuncionario}
+            disabled={manageLoading}
+            className="inline-flex h-10 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50 transition"
+          >
+            {manageLoading ? 'Processando...' : 'Deletar'}
+          </button>
+          <button
+            type="button"
+            onClick={handleUpdateFuncionario}
+            disabled={manageLoading}
+            className="inline-flex h-10 items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 transition"
+          >
+            {manageLoading ? 'Processando...' : 'Salvar alterações'}
+          </button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={assetsOpen} onClose={handleCloseAssets} fullWidth maxWidth="md">
+        <DialogTitle>Ativos alocados a {selectedFuncionario?.nome}</DialogTitle>
+        <DialogContent>
+          {assetsLoading ? (
+            <div className="py-8 text-center text-gray-500">Carregando ativos...</div>
+          ) : funcionarioAssets.length === 0 ? (
+            <div className="py-8 text-center text-gray-500">Nenhum ativo alocado a este funcionário.</div>
+          ) : (
+            <div className="space-y-3 py-2">
+              {funcionarioAssets.map((asset) => (
+                <div key={asset.id} className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="font-semibold text-gray-900">{asset.modelo}</div>
+                    <div className="mt-1 text-sm text-gray-600">Tipo: {asset.tipo}</div>
+                    <div className="mt-1 text-sm text-gray-600">S/N: {asset.numeroSerie ?? '—'}</div>
+                    <div className="mt-1 text-sm text-gray-600">Status: {asset.status}</div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeallocateAsset(asset.id)}
+                    disabled={Boolean(deallocatingAssetId)}
+                    className="inline-flex h-10 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50 transition"
+                  >
+                    {deallocatingAssetId === asset.id ? 'Desalocando...' : 'Desalocar'}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </DialogContent>
+        <DialogActions className="gap-3 p-4">
+          <button
+            type="button"
+            onClick={handleCloseAssets}
+            className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
+          >
+            Fechar
           </button>
         </DialogActions>
       </Dialog>

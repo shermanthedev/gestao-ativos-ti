@@ -27,11 +27,22 @@ model Funcionario {
 
 // Apenas usuários da TI podem logar no sistema.
 model UsuarioTI {
-  id        String   @id @default(uuid())
+  id        String      @id @default(uuid())
   nome      String
-  email     String   @unique
+  email     String      @unique
   senha     String
-  createdAt DateTime @default(now())
+  createdAt DateTime    @default(now())
+  auditLogs AuditLog[]
+}
+
+model AuditLog {
+  id          String     @id @default(uuid())
+  usuarioTIId String?
+  usuarioTI   UsuarioTI? @relation(fields: [usuarioTIId], references: [id])
+  action      String
+  entity      String
+  message     String
+  createdAt   DateTime   @default(now())
 }
 
 enum TipoAtivo {

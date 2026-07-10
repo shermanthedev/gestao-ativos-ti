@@ -7,6 +7,7 @@ import {
   updateFuncionarioSchema,
   listFuncionarioSchema,
 } from '../schemas/funcionario.schema.js';
+import { createAuditLog } from '../utils/auditLog.js';
 
 const funcionarioSelect = {
   id: true,
@@ -40,6 +41,8 @@ export class FuncionarioController {
         data: { nome, email, setorId },
         select: funcionarioSelect,
       });
+
+      await createAuditLog(req, 'CREATE', 'Funcionario', `${req.user?.nome ?? 'desconhecido'} cadastrou o funcionário ${novoFuncionario.nome}`)
 
       return res.status(201).json(novoFuncionario);
     } catch (err) {
@@ -112,6 +115,13 @@ export class FuncionarioController {
         select: funcionarioSelect,
       });
 
+      await createAuditLog(
+        req,
+        'UPDATE',
+        'Funcionario',
+        `${req.user?.nome ?? 'desconhecido'} atualizou o funcionário ${funcionarioAtualizado.nome}`
+      );
+
       return res.json(funcionarioAtualizado);
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
@@ -130,6 +140,7 @@ export class FuncionarioController {
     }
 
     await prisma.funcionario.delete({ where: { id } });
+    await createAuditLog(req, 'DELETE', 'Funcionario', `${req.user?.nome ?? 'desconhecido'} deletou o funcionário ${funcionarioExistente.nome}`)
 
     return res.status(204).send();
   }
