@@ -1,0 +1,74 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Setor {
+  id           String        @id @default(uuid())
+  nome         String        @unique
+  funcionarios Funcionario[]
+  ativos       Ativo[]
+  createdAt    DateTime      @default(now())
+}
+
+model Funcionario {
+  id        String   @id @default(uuid())
+  nome      String
+  email     String   @unique
+
+  setorId   String
+  setor     Setor    @relation(fields: [setorId], references: [id])
+  ativos    Ativo[]
+  createdAt DateTime @default(now())
+}
+
+// Apenas usuários da TI podem logar no sistema.
+model UsuarioTI {
+  id        String   @id @default(uuid())
+  nome      String
+  email     String   @unique
+  senha     String
+  createdAt DateTime @default(now())
+}
+
+enum TipoAtivo {
+  NOTEBOOK
+  IMPRESSORA
+  RAMAL
+  CABO
+  MONITOR
+  PERIFÉRICO
+  NOBREAK
+  SERVIDOR
+  SWITCH
+  LEITOR
+  COMPUTADOR
+  ACCESSPOINT
+  ROTEADOR
+}
+
+enum StatusAtivo {
+  EM_ESTOQUE
+  ALOCADO
+  MANUTENCAO
+}
+
+model Ativo {
+  id            String       @id @default(uuid())
+  tipo          TipoAtivo
+  modelo        String
+  numeroSerie   String?      @unique
+  ip            String?
+  status        StatusAtivo  @default(EM_ESTOQUE)
+
+  setorId       String?
+  setor         Setor?       @relation(fields: [setorId], references: [id])
+
+  funcionarioId String?
+  funcionario   Funcionario? @relation(fields: [funcionarioId], references: [id])
+
+  createdAt     DateTime     @default(now())
+}
