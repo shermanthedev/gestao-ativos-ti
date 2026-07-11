@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database.js';
-import { AppError } from '../utils/AppError.js';
+import { AppError, formatZodError } from '../utils/AppError.js';
 import {
   createFuncionarioSchema,
   updateFuncionarioSchema,
@@ -25,7 +25,7 @@ export class FuncionarioController {
     // 1. Validação automática com Zod
     const resultado = createFuncionarioSchema.safeParse(req.body);
     if (!resultado.success) {
-      throw new AppError(resultado.error.message, 400);
+      throw new AppError(formatZodError(resultado.error), 400);
     }
 
     const { nome, email, setorId } = resultado.data;
@@ -56,13 +56,22 @@ export class FuncionarioController {
   async list(req: Request, res: Response) {
     const resultado = listFuncionarioSchema.safeParse(req.query);
     if (!resultado.success) {
-      throw new AppError(resultado.error.message, 400);
+      throw new AppError(formatZodError(resultado.error), 400);
     }
 
-    const { nome, email, setorId, page, limit } = resultado.data;
+    const { nome, email, setorId, page, limit, search } = resultado.data;
+    const searchValue = search?.trim();
     const skip = (page - 1) * limit;
 
     const where: Prisma.FuncionarioWhereInput = {
+      ...(searchValue
+        ? {
+            OR: [
+              { nome: { contains: searchValue, mode: 'insensitive' as const } },
+              { email: { contains: searchValue, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}),
       ...(nome && { nome: { contains: nome, mode: 'insensitive' as const } }),
       ...(email && { email: { contains: email, mode: 'insensitive' as const } }),
       ...(setorId && { setorId }),
@@ -92,7 +101,7 @@ export class FuncionarioController {
 
     const resultado = updateFuncionarioSchema.safeParse(req.body);
     if (!resultado.success) {
-      throw new AppError(resultado.error.message, 400);
+      throw new AppError(formatZodError(resultado.error), 400);
     }
 
     const { nome, email, setorId } = resultado.data;

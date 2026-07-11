@@ -42,7 +42,7 @@ export default function Sidebar({ open, onClose }: SidebarProps) {
       <aside
         className={`${
           open ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0 lg:block fixed lg:relative z-50 h-screen lg:h-auto w-64 bg-white border md:rounded-2xl transition-transform duration-300 flex`}
+        } lg:translate-x-0 lg:block fixed lg:relative z-50 h-screen lg:h-auto w-64 bg-white border border-gray-200 md:rounded-2xl transition-transform duration-300 flex`}
       >
         <div className="p-4 border-b flex items-center justify-between sm:hidden">
           <div className="text-lg font-semibold">Menu</div>

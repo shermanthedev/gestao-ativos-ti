@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
+import { getApiErrorMessage } from '../lib/api'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -42,8 +43,7 @@ export default function Login() {
       // navigation happens inside auth.login
     } catch (err: any) {
       // Prefer the backend's `erro` field (Portuguese) if present, then common `message`/`error`, then the Axios message
-      const apiMsg = err?.response?.data?.erro || err?.response?.data?.message || err?.response?.data?.error
-      setError(apiMsg || err?.message || 'Erro ao autenticar')
+      setError(getApiErrorMessage(err) || 'Erro ao autenticar')
       setLoading(false)
     }
   }

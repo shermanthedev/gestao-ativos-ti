@@ -25,6 +25,7 @@ export const updateFuncionarioSchema = createFuncionarioSchema.partial();
 export const listFuncionarioSchema = z.object({
   nome: z.string().optional(),
   email: z.string().optional(),
+  search: z.string().optional(),
   setorId: z.string().optional(),
   page: z.string().optional().default('1').transform(Number),
   limit: z.string().optional().default('50').transform(Number),

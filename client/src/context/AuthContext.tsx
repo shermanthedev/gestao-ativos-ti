@@ -12,6 +12,7 @@ type AuthContextType = {
   user: User | null
   token: string | null
   login: (email: string, password: string) => Promise<void>
+  updateProfile: (payload: { nome?: string; email?: string; senha?: string }) => Promise<void>
   logout: () => void
   isAuthenticated: boolean
 }
@@ -70,6 +71,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     navigate('/dashboard')
   }
 
+  const updateProfile = async (payload: { nome?: string; email?: string; senha?: string }) => {
+    if (!user?.id) return
+
+    const sanitizedPayload: { nome?: string; email?: string; senha?: string } = {}
+
+    if (payload.nome?.trim()) sanitizedPayload.nome = payload.nome.trim()
+    if (payload.email?.trim()) sanitizedPayload.email = payload.email.trim().toLowerCase()
+    if (payload.senha?.trim()) sanitizedPayload.senha = payload.senha.trim()
+
+    if (Object.keys(sanitizedPayload).length === 0) return
+
+    const response = await api.put(`/usuarios-ti/${user.id}`, sanitizedPayload)
+    const payloadData = response.data as { usuario?: User; token?: string; user?: User }
+    const updatedUser = (payloadData.usuario ?? payloadData.user ?? response.data) as User
+
+    if (payloadData.token) {
+      setToken(payloadData.token)
+      setAuthToken(payloadData.token)
+    }
+
+    setUser((currentUser) => (currentUser ? { ...currentUser, ...updatedUser } : updatedUser))
+  }
+
   const logout = () => {
     setUser(null)
     setToken(null)
@@ -82,6 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     user,
     token,
     login,
+    updateProfile,
     logout,
     isAuthenticated: !!token,
   }

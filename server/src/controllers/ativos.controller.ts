@@ -1,7 +1,7 @@
 import type { Request, Response } from 'express';
 import { Prisma, TipoAtivo } from '@prisma/client';
 import { prisma } from '../config/database.js';
-import { AppError } from '../utils/AppError.js';
+import { AppError, formatZodError } from '../utils/AppError.js';
 import { createAtivoSchema, updateAtivoSchema, listAtivoSchema, allocateAtivoSchema, deallocateAtivoSchema } from '../schemas/ativo.schema.js';
 import { createAuditLog } from '../utils/auditLog.js';
 
@@ -29,7 +29,7 @@ export class AtivoController {
   async create(req: Request, res: Response) {
     const resultado = createAtivoSchema.safeParse(req.body);
     if (!resultado.success) {
-      throw new AppError(resultado.error.message, 400);
+      throw new AppError(formatZodError(resultado.error), 400);
     }
 
     let { modelo, tipo, numeroSerie, status, funcionarioId, setorId } = resultado.data;
@@ -78,14 +78,24 @@ export class AtivoController {
   async list(req: Request, res: Response) {
     const resultado = listAtivoSchema.safeParse(req.query);
     if (!resultado.success) {
-      throw new AppError(resultado.error.message, 400);
+      throw new AppError(formatZodError(resultado.error), 400);
     }
 
-    const { modelo, tipo, status, funcionarioId, setorId, page, limit } = resultado.data;
+    const { modelo, tipo, status, funcionarioId, setorId, page, limit, search } = resultado.data;
+    const searchValue = search?.trim();
 
     const where: Prisma.AtivoWhereInput = {
+      ...(searchValue
+        ? {
+            OR: [
+              { modelo: { contains: searchValue, mode: 'insensitive' as const } },
+              { numeroSerie: { contains: searchValue, mode: 'insensitive' as const } },
+              { ip: { contains: searchValue, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}),
       ...(modelo && { modelo: { contains: modelo, mode: 'insensitive' as const } }),
-      ...      (tipo && { tipo: tipo as unknown as TipoAtivo }),
+      ...(tipo && { tipo: tipo as unknown as TipoAtivo }),
       ...(status && { status }),
       ...(funcionarioId && { funcionarioId }),
       ...(setorId && { setorId })
@@ -116,7 +126,7 @@ export class AtivoController {
 
     const resultado = updateAtivoSchema.safeParse(req.body);
     if (!resultado.success) {
-      throw new AppError(resultado.error.message, 400);
+      throw new AppError(formatZodError(resultado.error), 400);
     }
 
     // Remove chaves com `undefined` para que Prisma (exactOptionalPropertyTypes)
@@ -182,7 +192,7 @@ export class AtivoController {
   async allocate(req: Request, res: Response) {
     const resultado = allocateAtivoSchema.safeParse(req.body);
     if (!resultado.success) {
-      throw new AppError(resultado.error.message, 400);
+      throw new AppError(formatZodError(resultado.error), 400);
     }
 
     const { modelo, tipo, quantidade, funcionarioId, setorId } = resultado.data;
@@ -215,7 +225,7 @@ export class AtivoController {
   async deallocate(req: Request, res: Response) {
     const resultado = deallocateAtivoSchema.safeParse(req.body);
     if (!resultado.success) {
-      throw new AppError(resultado.error.message, 400);
+      throw new AppError(formatZodError(resultado.error), 400);
     }
 
     const { ids, quantidade, funcionarioId, setorId } = resultado.data;
@@ -270,10 +280,20 @@ export class AtivoController {
 
   // 8. Listar ativos ALOCADOS (detalhado)
   async allocatedList(req: Request, res: Response) {
-    const { modelo, tipo, funcionarioId, setorId, page = 1, limit = 50 } = req.query as Record<string, string>;
+    const { modelo, tipo, funcionarioId, setorId, page = 1, limit = 50, search } = req.query as Record<string, string>;
+    const searchValue = search?.trim();
 
     const where: Prisma.AtivoWhereInput = {
       status: 'ALOCADO',
+      ...(searchValue
+        ? {
+            OR: [
+              { modelo: { contains: searchValue, mode: 'insensitive' as const } },
+              { numeroSerie: { contains: searchValue, mode: 'insensitive' as const } },
+              { ip: { contains: searchValue, mode: 'insensitive' as const } },
+            ],
+          }
+        : {}),
       ...(modelo ? { modelo: { contains: modelo, mode: 'insensitive' as const } } : {}),
       ...(tipo ? { tipo: tipo as unknown as TipoAtivo } : {}),
       ...(funcionarioId ? { funcionarioId } : {}),

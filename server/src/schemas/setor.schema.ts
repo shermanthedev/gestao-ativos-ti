@@ -14,3 +14,7 @@ export const listSetorSchema = z.object({
   page: z.string().optional().default('1').transform(Number),
   limit: z.string().optional().default('50').transform(Number),
 });
+
+export const deleteSetorSchema = z.object({
+  transferToSetorId: z.string().uuid().optional().nullable(),
+});

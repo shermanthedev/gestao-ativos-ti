@@ -2,7 +2,7 @@ import type { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database.js';
-import { AppError } from '../utils/AppError.js';
+import { AppError, formatZodError } from '../utils/AppError.js';
 import { signToken } from '../utils/jwt.js';
 import { loginSchema, registerPrimeiroSchema } from '../schemas/auth.schema.js';
 import { usuarioTISelect } from './usuarioTI.controller.js';
@@ -13,7 +13,7 @@ export class AuthController {
   async login(req: Request, res: Response) {
     const resultado = loginSchema.safeParse(req.body);
     if (!resultado.success) {
-      throw new AppError(resultado.error.message, 400);
+      throw new AppError(formatZodError(resultado.error), 400);
     }
 
     const { email, senha } = resultado.data;
@@ -56,7 +56,7 @@ export class AuthController {
 
     const resultado = registerPrimeiroSchema.safeParse(req.body);
     if (!resultado.success) {
-      throw new AppError(resultado.error.message, 400);
+      throw new AppError(formatZodError(resultado.error), 400);
     }
 
     const { nome, email, senha } = resultado.data;

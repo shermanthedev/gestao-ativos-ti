@@ -2,7 +2,8 @@ import type { Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database.js';
-import { AppError } from '../utils/AppError.js';
+import { AppError, formatZodError } from '../utils/AppError.js';
+import { signToken } from '../utils/jwt.js';
 import {
   createUsuarioTISchema,
   updateUsuarioTISchema,
@@ -24,7 +25,7 @@ export class UsuarioTIController {
   async create(req: Request, res: Response) {
     const resultado = createUsuarioTISchema.safeParse(req.body);
     if (!resultado.success) {
-      throw new AppError(resultado.error.message, 400);
+      throw new AppError(formatZodError(resultado.error), 400);
     }
 
     const { nome, email, senha } = resultado.data;
@@ -48,7 +49,7 @@ export class UsuarioTIController {
   async list(req: Request, res: Response) {
     const resultado = listUsuarioTISchema.safeParse(req.query);
     if (!resultado.success) {
-      throw new AppError(resultado.error.message, 400);
+      throw new AppError(formatZodError(resultado.error), 400);
     }
 
     const { nome, email, page, limit } = resultado.data;
@@ -83,7 +84,7 @@ export class UsuarioTIController {
 
     const resultado = updateUsuarioTISchema.safeParse(req.body);
     if (!resultado.success) {
-      throw new AppError(resultado.error.message, 400);
+      throw new AppError(formatZodError(resultado.error), 400);
     }
 
     const { nome, email, senha } = resultado.data;
@@ -102,7 +103,13 @@ export class UsuarioTIController {
         select: usuarioTISelect,
       });
 
-      return res.json(usuarioAtualizado);
+      const token = signToken({
+        sub: usuarioAtualizado.id,
+        email: usuarioAtualizado.email,
+        nome: usuarioAtualizado.nome,
+      });
+
+      return res.json({ usuario: usuarioAtualizado, token });
     } catch (err) {
       if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
         throw new AppError('Já existe um usuário TI com esse email.', 409);

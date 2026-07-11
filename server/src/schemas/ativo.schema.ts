@@ -46,6 +46,7 @@ export const updateAtivoSchema = z.object({
 // Schema para listagem/filtros (Query Params)
 export const listAtivoSchema = z.object({
   modelo: z.string().optional(),
+  search: z.string().optional(),
   tipo: z.enum(tipoEnumValues as unknown as [string, ...string[]]).optional(),
   status: statusEnum.optional(),
   funcionarioId: z.string().optional(),

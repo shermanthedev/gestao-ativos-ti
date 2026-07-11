@@ -1,11 +1,5 @@
 import { useState, useEffect } from 'react'
-import {
-  Search as SearchIcon,
-  Email as EmailIcon,
-  Business as BusinessIcon,
-  Add as AddIcon,
-  ManageAccounts as ManageAccountsIcon,
-} from '@mui/icons-material'
+import { Email as EmailIcon, Business as BusinessIcon, Add as AddIcon, ManageAccounts as ManageAccountsIcon } from '@mui/icons-material'
 import {
   Dialog,
   DialogTitle,
@@ -22,7 +16,11 @@ import {
 import Header from '../components/Header'
 import Sidebar from '../components/Sidebar'
 import Layout from '../components/Layout'
-import { api } from '../lib/api'
+import PageHeader from '../components/PageHeader'
+import SearchField from '../components/SearchField'
+import EmptyState from '../components/EmptyState'
+import AssignedAssetsDialog from '../components/AssignedAssetsDialog'
+import { api, getApiErrorMessage } from '../lib/api'
 
 type Funcionario = {
   id: string
@@ -44,6 +42,7 @@ export default function Funcionarios() {
   const [funcionarios, setFuncionarios] = useState<Funcionario[]>([])
   const [setores, setSetores] = useState<Setor[]>([])
   const [searchTerm, setSearchTerm] = useState('')
+  const [setorFilter, setSetorFilter] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [openCreate, setOpenCreate] = useState(false)
@@ -69,14 +68,15 @@ export default function Funcionarios() {
     try {
       const response = await api.get('/funcionarios', {
         params: {
-          nome: searchTerm || undefined,
+          search: searchTerm.trim() || undefined,
+          setorId: setorFilter || undefined,
           page: 1,
           limit: 100,
         },
       })
       setFuncionarios(response.data.data)
     } catch (err: any) {
-      setError(err?.response?.data?.erro || err?.message || 'Erro ao carregar funcionários')
+      setError(getApiErrorMessage(err) || 'Erro ao carregar funcionários')
     } finally {
       setLoading(false)
     }
@@ -94,9 +94,11 @@ export default function Funcionarios() {
   }
 
   useEffect(() => {
-    const debounceTimer = window.setTimeout(loadFuncionarios, 300)
+    const debounceTimer = window.setTimeout(() => {
+      void loadFuncionarios()
+    }, 300)
     return () => window.clearTimeout(debounceTimer)
-  }, [searchTerm])
+  }, [searchTerm, setorFilter])
 
 
   useEffect(() => {
@@ -136,7 +138,7 @@ export default function Funcionarios() {
       handleCloseCreate()
       await loadFuncionarios()
     } catch (err: any) {
-      setFormError(err?.response?.data?.erro || err?.message || 'Erro ao criar funcionário')
+      setFormError(getApiErrorMessage(err) || 'Erro ao criar funcionário')
     } finally {
       setCreateLoading(false)
     }
@@ -176,7 +178,7 @@ export default function Funcionarios() {
       handleCloseManage()
       await loadFuncionarios()
     } catch (err: any) {
-      setManageError(err?.response?.data?.erro || err?.message || 'Erro ao atualizar funcionário')
+      setManageError(getApiErrorMessage(err) || 'Erro ao atualizar funcionário')
     } finally {
       setManageLoading(false)
     }
@@ -194,7 +196,7 @@ export default function Funcionarios() {
       handleCloseManage()
       await loadFuncionarios()
     } catch (err: any) {
-      setManageError(err?.response?.data?.erro || err?.message || 'Erro ao deletar funcionário')
+      setManageError(getApiErrorMessage(err) || 'Erro ao deletar funcionário')
     } finally {
       setManageLoading(false)
     }
@@ -245,54 +247,59 @@ export default function Funcionarios() {
       sidebar={<Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />}
     >
       <div className="space-y-6">
-        {/* Header */}
-        <div className="flex flex-col gap-4">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Funcionários</h1>
-            <p className="text-sm text-gray-500">Gerencie todos os funcionários cadastrados</p>
-          </div>
+        <PageHeader
+          title="Funcionários"
+          description="Gerencie todos os funcionários cadastrados"
+          actions={
+            <button
+              type="button"
+              onClick={handleOpenCreate}
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-4 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition"
+            >
+              <AddIcon className="h-4 w-4" />
+              Adicionar funcionário
+            </button>
+          }
+        />
 
-          <div className="bg-white rounded-2xl p-4 shadow-sm border">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3 border border-gray-200 rounded-lg px-4 py-2 focus-within:ring-2 focus-within:ring-indigo-200 flex-1">
-                <SearchIcon className="text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Buscar por nome..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="flex-1 outline-none text-sm"
-                />
-              </div>
+        <div className="bg-white rounded-2xl p-4 shadow-sm border">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+            <div className="grid flex-1 grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+              <SearchField value={searchTerm} onChange={setSearchTerm} placeholder="Buscar por nome ou e-mail" />
 
-              <button
-                type="button"
-                onClick={handleOpenCreate}
-                className="inline-flex h-10 items-center gap-2 rounded-lg border border-indigo-100 bg-indigo-50 px-4 text-sm font-medium text-indigo-700 hover:bg-indigo-100 transition"
-              >
-                <AddIcon className="h-4 w-4" />
-                Adicionar funcionário
-              </button>
+              <FormControl fullWidth size="small">
+                <InputLabel id="setor-filter-label">Setor</InputLabel>
+                <Select
+                  labelId="setor-filter-label"
+                  value={setorFilter}
+                  label="Setor"
+                  onChange={(e) => setSetorFilter(e.target.value)}
+                >
+                  <MenuItem value="">Todos os setores</MenuItem>
+                  {setores.map((setor) => (
+                    <MenuItem key={setor.id} value={setor.id}>
+                      {setor.nome}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
             </div>
           </div>
         </div>
 
-        {/* Error */}
-        {error && (
+        {error ? (
           <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-sm text-red-700">
             {error}
           </div>
-        )}
+        ) : null}
 
-        {/* Loading */}
-        {loading && (
+        {loading ? (
           <div className="bg-white rounded-2xl p-8 shadow-sm border text-center text-gray-500">
             Carregando funcionários...
           </div>
-        )}
+        ) : null}
 
-        {/* List */}
-        {!loading && funcionarios.length > 0 && (
+        {!loading && funcionarios.length > 0 ? (
           <div className="grid grid-cols-1 gap-3">
             {funcionarios.map((funcionario) => (
               <div key={funcionario.id} className="bg-white rounded-2xl p-4 shadow-sm border hover:shadow-md transition-shadow">
@@ -325,27 +332,21 @@ export default function Funcionarios() {
               </div>
             ))}
           </div>
-        )}
+        ) : null}
 
-        {/* Empty State */}
-        {!loading && funcionarios.length === 0 && !error && (
-          <div className="bg-white rounded-2xl p-12 shadow-sm border text-center">
-            <div className="text-gray-400 mb-2">
-              <SearchIcon sx={{ fontSize: 48 }} />
-            </div>
-            <p className="text-gray-600 font-medium">Nenhum funcionário encontrado</p>
-            <p className="text-sm text-gray-500">
-              {searchTerm ? 'Tente buscar por outro nome' : 'Nenhum funcionário cadastrado ainda'}
-            </p>
-          </div>
-        )}
+        {!loading && funcionarios.length === 0 && !error ? (
+          <EmptyState
+            title="Nenhum funcionário encontrado"
+            description={searchTerm || setorFilter ? 'Tente ajustar os filtros ou a busca' : 'Nenhum funcionário cadastrado ainda'}
+            icon={<span className="text-4xl">👤</span>}
+          />
+        ) : null}
 
-        {/* Count */}
-        {!loading && funcionarios.length > 0 && (
+        {!loading && funcionarios.length > 0 ? (
           <div className="text-sm text-gray-600">
             Total de <span className="font-semibold">{funcionarios.length}</span> funcionário(s) encontrado(s)
           </div>
-        )}
+        ) : null}
       </div>
 
       <Dialog open={openCreate} onClose={handleCloseCreate} fullWidth maxWidth="sm">
@@ -478,46 +479,16 @@ export default function Funcionarios() {
         </DialogActions>
       </Dialog>
 
-      <Dialog open={assetsOpen} onClose={handleCloseAssets} fullWidth maxWidth="md">
-        <DialogTitle>Ativos alocados a {selectedFuncionario?.nome}</DialogTitle>
-        <DialogContent>
-          {assetsLoading ? (
-            <div className="py-8 text-center text-gray-500">Carregando ativos...</div>
-          ) : funcionarioAssets.length === 0 ? (
-            <div className="py-8 text-center text-gray-500">Nenhum ativo alocado a este funcionário.</div>
-          ) : (
-            <div className="space-y-3 py-2">
-              {funcionarioAssets.map((asset) => (
-                <div key={asset.id} className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className="font-semibold text-gray-900">{asset.modelo}</div>
-                    <div className="mt-1 text-sm text-gray-600">Tipo: {asset.tipo}</div>
-                    <div className="mt-1 text-sm text-gray-600">S/N: {asset.numeroSerie ?? '—'}</div>
-                    <div className="mt-1 text-sm text-gray-600">Status: {asset.status}</div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleDeallocateAsset(asset.id)}
-                    disabled={Boolean(deallocatingAssetId)}
-                    className="inline-flex h-10 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 px-4 text-sm font-medium text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-50 transition"
-                  >
-                    {deallocatingAssetId === asset.id ? 'Desalocando...' : 'Desalocar'}
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </DialogContent>
-        <DialogActions className="gap-3 p-4">
-          <button
-            type="button"
-            onClick={handleCloseAssets}
-            className="inline-flex h-10 items-center justify-center rounded-lg border border-gray-200 bg-white px-4 text-sm font-medium text-gray-700 hover:bg-gray-50 transition"
-          >
-            Fechar
-          </button>
-        </DialogActions>
-      </Dialog>
+      <AssignedAssetsDialog
+        open={assetsOpen}
+        title={`Ativos alocados a ${selectedFuncionario?.nome}`}
+        loading={assetsLoading}
+        assets={funcionarioAssets}
+        emptyMessage="Nenhum ativo alocado a este funcionário."
+        deallocatingAssetId={deallocatingAssetId}
+        onClose={handleCloseAssets}
+        onDeallocate={handleDeallocateAsset}
+      />
     </Layout>
   )
 }

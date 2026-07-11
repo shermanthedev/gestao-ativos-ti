@@ -6,3 +6,8 @@ export class AppError extends Error {
         this.statusCode = statusCode;
     }
 }
+
+export function formatZodError(error: { issues?: Array<{ message?: string }> }) {
+    const firstIssue = error?.issues?.[0]
+    return firstIssue?.message || 'Dados inválidos.'
+}

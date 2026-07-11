@@ -1,11 +1,12 @@
 import type { Request, Response } from 'express';
 import { Prisma } from '@prisma/client';
 import { prisma } from '../config/database.js';
-import { AppError } from '../utils/AppError.js';
+import { AppError, formatZodError } from '../utils/AppError.js';
 import {
   createSetorSchema,
   updateSetorSchema,
   listSetorSchema,
+  deleteSetorSchema,
 } from '../schemas/setor.schema.js';
 
 const setorSelect = {
@@ -21,7 +22,7 @@ export class SetorController {
   async create(req: Request, res: Response) {
     const resultado = createSetorSchema.safeParse(req.body);
     if (!resultado.success) {
-      throw new AppError(resultado.error.message, 400);
+      throw new AppError(formatZodError(resultado.error), 400);
     }
 
     const { nome } = resultado.data;
@@ -45,7 +46,7 @@ export class SetorController {
   async list(req: Request, res: Response) {
     const resultado = listSetorSchema.safeParse(req.query);
     if (!resultado.success) {
-      throw new AppError(resultado.error.message, 400);
+      throw new AppError(formatZodError(resultado.error), 400);
     }
 
     const { nome, page, limit } = resultado.data;
@@ -83,7 +84,7 @@ export class SetorController {
 
     const resultado = updateSetorSchema.safeParse(req.body);
     if (!resultado.success) {
-      throw new AppError(resultado.error.message, 400);
+      throw new AppError(formatZodError(resultado.error), 400);
     }
 
     const { nome } = resultado.data;
@@ -107,9 +108,50 @@ export class SetorController {
   async delete(req: Request, res: Response) {
     const id = String(req.params.id);
 
-    const setorExistente = await prisma.setor.findUnique({ where: { id } });
+    const resultado = deleteSetorSchema.safeParse(req.body ?? {});
+    if (!resultado.success) {
+      throw new AppError(formatZodError(resultado.error), 400);
+    }
+
+    const setorExistente = await prisma.setor.findUnique({
+      where: { id },
+      include: { funcionarios: true },
+    });
+
     if (!setorExistente) {
       throw new AppError('Setor não encontrado.', 404);
+    }
+
+    const outrosSetores = await prisma.setor.findMany({
+      where: { id: { not: id } },
+      select: { id: true },
+    });
+
+    const transferToSetorId = resultado.data.transferToSetorId;
+
+    if (setorExistente.funcionarios.length > 0) {
+      if (!transferToSetorId) {
+        throw new AppError('É necessário escolher um setor para transferir os funcionários antes de apagar este setor.', 400);
+      }
+
+      const destinoExiste = outrosSetores.some((setor) => setor.id === transferToSetorId);
+      if (!destinoExiste) {
+        throw new AppError('O setor de destino não existe.', 400);
+      }
+
+      await prisma.funcionario.updateMany({
+        where: { setorId: id },
+        data: { setorId: transferToSetorId },
+      });
+    } else if (transferToSetorId) {
+      const destinoExiste = outrosSetores.some((setor) => setor.id === transferToSetorId);
+      if (!destinoExiste) {
+        throw new AppError('O setor de destino não existe.', 400);
+      }
+    }
+
+    if (outrosSetores.length === 0 && setorExistente.funcionarios.length > 0) {
+      throw new AppError('Não existe outro setor cadastrado para receber os funcionários.', 400);
     }
 
     await prisma.setor.delete({ where: { id } });

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
-import { Search as SearchIcon, Email as EmailIcon, Person as PersonIcon } from '@mui/icons-material'
+import { Search as SearchIcon, Email as EmailIcon, Person as PersonIcon, Add as AddIcon } from '@mui/icons-material'
+import { Dialog, DialogTitle, DialogContent, DialogActions, TextField, Alert, Stack } from '@mui/material'
 import Header from '../components/Header'
 import Sidebar from '../components/Sidebar'
 import Layout from '../components/Layout'
-import { api } from '../lib/api'
+import { api, getApiErrorMessage } from '../lib/api'
 
 type UsuarioTI = {
   id: string
@@ -18,30 +19,72 @@ export default function Equipe() {
   const [searchTerm, setSearchTerm] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [openCreate, setOpenCreate] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newEmail, setNewEmail] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [createLoading, setCreateLoading] = useState(false)
+  const [formError, setFormError] = useState<string | null>(null)
+
+  const loadUsuarios = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await api.get('/usuarios-ti', {
+        params: {
+          nome: searchTerm || undefined,
+          page: 1,
+          limit: 100,
+        },
+      })
+      setUsuarios(response.data.data)
+    } catch (err: any) {
+      setError(getApiErrorMessage(err) || 'Erro ao carregar equipe')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchUsuarios = async () => {
-      setLoading(true)
-      setError(null)
-      try {
-        const response = await api.get('/usuarios-ti', {
-          params: {
-            nome: searchTerm || undefined,
-            page: 1,
-            limit: 100,
-          },
-        })
-        setUsuarios(response.data.data)
-      } catch (err: any) {
-        setError(err?.response?.data?.erro || err?.message || 'Erro ao carregar equipe')
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    const debounceTimer = setTimeout(fetchUsuarios, 300)
+    const debounceTimer = setTimeout(loadUsuarios, 300)
     return () => clearTimeout(debounceTimer)
   }, [searchTerm])
+
+  const handleOpenCreate = () => {
+    setFormError(null)
+    setOpenCreate(true)
+  }
+
+  const handleCloseCreate = () => {
+    setOpenCreate(false)
+    setNewName('')
+    setNewEmail('')
+    setNewPassword('')
+    setFormError(null)
+  }
+
+  const handleCreate = async () => {
+    if (!newName || !newEmail || !newPassword) {
+      setFormError('Preencha nome, email e senha para criar o membro.')
+      return
+    }
+
+    setCreateLoading(true)
+    setFormError(null)
+    try {
+      await api.post('/usuarios-ti', {
+        nome: newName,
+        email: newEmail,
+        senha: newPassword,
+      })
+      handleCloseCreate()
+      await loadUsuarios()
+    } catch (err: any) {
+      setFormError(getApiErrorMessage(err) || 'Erro ao criar membro da equipe')
+    } finally {
+      setCreateLoading(false)
+    }
+  }
 
   return (
     <Layout
@@ -57,15 +100,25 @@ export default function Equipe() {
 
         {/* Search */}
         <div className="bg-white rounded-2xl p-4 shadow-sm border">
-          <div className="flex items-center gap-3 border border-gray-200 rounded-lg px-4 py-2 focus-within:ring-2 focus-within:ring-indigo-200">
-            <SearchIcon className="text-gray-400" />
-            <input
-              type="text"
-              placeholder="Buscar por nome..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="flex-1 outline-none text-sm"
-            />
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-3 border border-gray-200 rounded-lg px-4 py-2 focus-within:ring-2 focus-within:ring-indigo-200 flex-1">
+              <SearchIcon className="text-gray-400" />
+              <input
+                type="text"
+                placeholder="Buscar por nome..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1 outline-none text-sm"
+              />
+            </div>
+            <button
+              type="button"
+              onClick={handleOpenCreate}
+              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-4 text-sm font-medium text-white hover:bg-indigo-700"
+            >
+              <AddIcon className="h-4 w-4" />
+              Novo Membro
+            </button>
           </div>
         </div>
 
@@ -134,6 +187,26 @@ export default function Equipe() {
           </div>
         )}
       </div>
+
+      <Dialog open={openCreate} onClose={handleCloseCreate} fullWidth maxWidth="sm">
+        <DialogTitle>Novo membro da equipe</DialogTitle>
+        <DialogContent>
+          <Stack spacing={3} className="mt-2">
+            {formError && <Alert severity="error">{formError}</Alert>}
+            <TextField label="Nome" value={newName} onChange={(e) => setNewName(e.target.value)} fullWidth variant="outlined" />
+            <TextField label="Email" type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} fullWidth variant="outlined" />
+            <TextField label="Senha" type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} fullWidth variant="outlined" />
+          </Stack>
+        </DialogContent>
+        <DialogActions className="gap-3 p-4">
+          <button type="button" onClick={handleCloseCreate} disabled={createLoading} className="rounded-lg border border-gray-200 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 transition">
+            Cancelar
+          </button>
+          <button type="button" onClick={handleCreate} disabled={createLoading} className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-50 transition">
+            {createLoading ? 'Salvando...' : 'Criar membro'}
+          </button>
+        </DialogActions>
+      </Dialog>
     </Layout>
   )
 }
